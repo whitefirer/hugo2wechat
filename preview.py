@@ -279,6 +279,7 @@ def main():
     parser = argparse.ArgumentParser(description='Hugo → 微信 预览服务器')
     parser.add_argument('-c', '--config', help='配置文件 (YAML/JSON)')
     parser.add_argument('--port', type=int, default=3333)
+    parser.add_argument('--host', default='0.0.0.0')
     parser.add_argument('--content-dir', default=str(DEFAULT_CONTENT_DIR))
     parser.add_argument('--api-base', default="http://localhost:3456")
     parser.add_argument('--theme', help='默认主题')
@@ -301,9 +302,9 @@ def main():
     if not PreviewHandler.content_dir.exists():
         print(f"⚠️  内容目录不存在: {args.content_dir}")
 
-    server = http.server.HTTPServer(('127.0.0.1', args.port), PreviewHandler)
+    server = http.server.HTTPServer((args.host, args.port), PreviewHandler)
     print(f"📱 微信预览服务器")
-    print(f"   地址: http://127.0.0.1:{args.port}")
+    print(f"   地址: http://{args.host}:{args.port}")
     print(f"   内容: {args.content_dir}")
     print(f"   API:  {args.api_base}")
     try:
