@@ -1,0 +1,8 @@
+# Python dependencies for Hugo → WeChat conversion pipeline
+markdown-it-py>=3.0.0
+linkify-it-py>=2.0.0
+
+# Optional local renderers
+# Install via setup.sh or manually:
+# - @mermaid-js/mermaid-cli  → mmdc (offline mermaid rendering, ~500MB)
+# - asciicast2gif            → asciinema → GIF conversion

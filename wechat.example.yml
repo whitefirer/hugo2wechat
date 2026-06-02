@@ -1,0 +1,21 @@
+# Hugo → 微信公众号 转换配置示例
+# 用法: python3 convert.py -c wechat.yml
+
+api_url: "http://localhost:3456/api/convert"  # markdown2wechat API 地址
+api: true                                      # 是否使用 API（false=本地渲染）
+theme: null                                    # 主题名，null=默认
+author: "whitefirer"                           # 文末署名
+output_dir: "/tmp/wechat-output"               # 输出目录
+
+posts:
+  # 本地文件
+  - source: "content/posts/ai-programming-thoughts/index.md"
+  - source: "content/posts/claude-code-hooks-guide/index.md"
+  - source: "content/posts/ai-trust-meaning/index.md"
+
+  # 远程 URL
+  # - source: "https://whitefirer.org/posts/ai-programming-thoughts/"
+
+  # 指定输出文件名
+  # - source: "content/posts/xxx/index.md"
+  #   output: "/tmp/custom-name.html"
