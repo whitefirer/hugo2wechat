@@ -183,6 +183,22 @@ def post_process(html_content: str, author: str = 'whitefirer') -> str:
     return html_content + sig
 
 
+# ── SVG → Image (mobile WeChat compat) ─────────────────────────
+
+def svg_to_img(html_content: str) -> str:
+    """内联 <svg> → <img src='data:image/svg+xml;base64,...'> , 手机微信兼容"""
+    def _replace(m: re.Match) -> str:
+        svg = m.group(0)
+        b64 = base64.b64encode(svg.encode()).decode()
+        w = re.search(r'width="([^"]*)"', svg)
+        h = re.search(r'height="([^"]*)"', svg)
+        attrs = ''
+        if w: attrs += f' width="{w.group(1)}"'
+        if h: attrs += f' height="{h.group(1)}"'
+        return f'<img src="data:image/svg+xml;base64,{b64}"{attrs} alt="diagram"/>'
+    return re.sub(r'<svg\b[^>]*>.*?</svg>', _replace, html_content, flags=re.DOTALL)
+
+
 # ── Wrapper ────────────────────────────────────────────────────
 
 def wrap_html(title: str, body_html: str) -> str:
