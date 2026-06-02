@@ -52,7 +52,7 @@ body{{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--in
   <span class="badge">预览</span>
   <select id="themeSelect" onchange="switchTheme(this.value)">{themeOptions}</select>
   <div class="actions">
-    <button class="btn" onclick="copyHTML()">📋 复制 HTML</button>
+    <button class="btn" onclick="copyHTML(this)">📋 复制 HTML</button>
   </div>
 </div>
 <div class="main">
@@ -65,7 +65,7 @@ body{{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--in
 </div>
 <script>
 const SLUG = '{slug}';
-let currentHTML = '';
+let copyHTMLData = '';
 let themes = {themeListJson};
 
 async function render(theme) {{
@@ -75,7 +75,7 @@ async function render(theme) {{
     const data = await resp.json();
     if (data.success) {{
       document.getElementById('phoneContent').innerHTML = data.html;
-      currentHTML = data.html;
+      copyHTMLData = data.copy_html || data.html;
     }} else {{
       document.getElementById('phoneContent').innerHTML = '<div class="error">渲染失败: ' + (data.error || '未知错误') + '</div>';
     }}
@@ -88,16 +88,27 @@ function switchTheme(theme) {{
   render(theme);
 }}
 
-function copyHTML() {{
-  if (!currentHTML) return;
-  navigator.clipboard.write([
-    new ClipboardItem({{'text/html': new Blob([currentHTML], {{type: 'text/html'}}),
-                        'text/plain': new Blob([document.getElementById('phoneContent').innerText], {{type: 'text/plain'}})}})
-  ]).then(() => {{
-    const btn = event.target;
-    btn.textContent = '✅ 已复制';
+function copyHTML(btn) {{
+  if (!copyHTMLData) return;
+  try {{
+    const blob = new Blob([copyHTMLData], {{type: 'text/html'}});
+    const item = new ClipboardItem({{'text/html': blob}});
+    navigator.clipboard.write([item]).then(() => {{
+      btn.textContent = '✅ 已复制';
+      setTimeout(() => btn.textContent = '📋 复制 HTML', 1500);
+    }}).catch(() => fallbackCopy(btn));
+  }} catch(e) {{
+    fallbackCopy(btn);
+  }}
+}}
+
+function fallbackCopy(btn) {{
+  // Fallback: copy as plain text
+  const text = document.getElementById('phoneContent').innerText;
+  navigator.clipboard.writeText(text).then(() => {{
+    btn.textContent = '✅ 已复制(纯文本)';
     setTimeout(() => btn.textContent = '📋 复制 HTML', 1500);
-  }}).catch(() => alert('复制失败，请手动选择复制'));
+  }}).catch(() => alert('复制失败，请手动 Ctrl+A 全选复制'));
 }}
 
 render('{initialTheme}');
@@ -225,14 +236,24 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
             return
 
         title, author, body = result
+        # Render with title for preview display
+        markdown_with_title = f'# {title}\n\n{body}'
         payload = json.dumps({
-            'markdown': body,
+            'markdown': markdown_with_title,
             **(dict(theme=theme) if theme else {})
         }).encode()
 
         data, code = self._proxy_api('/api/convert', method='POST', body=payload)
         if data.get('success'):
-            self._json({'success': True, 'html': data['html']})
+            display_html = data['html']
+            # Also render body-only for copy (no title, WeChat editor has its own)
+            payload_body = json.dumps({
+                'markdown': body,
+                **(dict(theme=theme) if theme else {})
+            }).encode()
+            data_body, _ = self._proxy_api('/api/convert', method='POST', body=payload_body)
+            copy_html = data_body.get('html', display_html) if data_body.get('success') else display_html
+            self._json({'success': True, 'html': display_html, 'copy_html': copy_html})
         else:
             self._json({'success': False, 'error': data.get('error', '渲染失败')}, code)
 
