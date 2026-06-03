@@ -43,16 +43,26 @@ cd markdown2wechat/next && npx next dev -p 3456
 | Hugo 元素 | 处理方式 | 状态 |
 |-----------|----------|:----:|
 | Frontmatter | 剥离，title 用作标题 | ✅ |
-| `{{< mermaid >}}` | mermaid.ink API / mmdc → PNG | ✅ |
+| `{{< mermaid >}}` | mmdc + Chromium → PNG | ✅ |
 | `{{< asciinema >}}` | agg / asciicast2gif → GIF | ✅ |
-| `{{< image >}}` | 移除 shortcode 标签 | ✅ |
+| `{{< image >}}` | 提取 src → markdown 图片 | ✅ |
 | `{{< raw >}}` `{{< tab >}}` 等 | 移除标签，保留内容 | ✅ |
 | 系列导航 | 删除导航块 | ✅ |
-| 相对链接 | `/posts/x/` → `https://whitefirer.org/posts/x/` | ✅ |
-| 内联 `<svg>` | → `<img src='data:image/svg+xml;base64,...'>` | ✅ |
+| 相对链接 | `/posts/x/` → 补全 `base_url` | ✅ |
+| 内联 `<svg>` | resvg → PNG (2.5x zoom) | ✅ |
 | markdown2wechat 主题 | `--api` 调用排版引擎 | ✅ |
 | mdnice 残留属性 | 清理 `data-website` 等 | ✅ |
 | 文末署名 | 追加 `— author` | ✅ |
+
+### 关键依赖
+
+| 功能 | 工具 | 安装 |
+|------|------|------|
+| SVG → PNG | `resvg` | `sudo apt install resvg` |
+| Mermaid → PNG | `mmdc` + Chromium | `npm i -g @mermaid-js/mermaid-cli` |
+| Asciinema → GIF | `agg` | GitHub Release 下载 |
+| 排版引擎 | markdown2wechat | `npx next dev -p 3456` |
+| 预览服务器 | FastAPI + uvicorn + httpx | `pip install -r requirements.txt` |
 
 ## 管道流程
 

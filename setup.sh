@@ -6,12 +6,12 @@ echo "=== Hugo → WeChat 转换管道 依赖安装 ==="
 
 # 1. Python deps
 echo ""
-echo "[1/4] Python 依赖..."
+echo "[1/5] Python 依赖..."
 pip3 install -r "$(dirname "$0")/requirements.txt" --break-system-packages
 
 # 2. Node deps (mmdc — 可选，离线 mermaid 渲染)
 echo ""
-echo "[2/4] mermaid-cli (可选，需要 ~500MB)..."
+echo "[2/5] mermaid-cli (可选，需要 ~500MB)..."
 if command -v mmdc &>/dev/null; then
     echo "  ✓ mmdc 已安装"
 else
@@ -21,7 +21,7 @@ fi
 
 # 3. agg — asciinema → GIF (推荐)
 echo ""
-echo "[3/4] agg (asciinema → GIF)..."
+echo "[3/5] agg (asciinema → GIF)..."
 if command -v agg &>/dev/null; then
     echo "  ✓ agg 已安装"
 else
@@ -32,9 +32,18 @@ else
     echo "  ✓ agg ${AGG_VER} 安装完成" || echo "  ⚠ agg 安装失败"
 fi
 
-# 4. asciicast2gif — 备选方案 (需要 PhantomJS + ImageMagick)
+# 4. resvg — SVG → PNG (快速、高保真)
 echo ""
-echo "[4/4] asciicast2gif (备选，需要 PhantomJS)..."
+echo "[4/5] resvg (SVG → PNG)..."
+if command -v resvg &>/dev/null; then
+    echo "  ✓ resvg 已安装"
+else
+    sudo apt-get install -y resvg -qq 2>/dev/null && echo "  ✓ resvg 安装完成" || echo "  ⚠ resvg 安装失败，将使用 base64 SVG"
+fi
+
+# 5. asciicast2gif — 备选方案 (需要 PhantomJS + ImageMagick)
+echo ""
+echo "[5/5] asciicast2gif (备选，需要 PhantomJS)..."
 if command -v asciicast2gif &>/dev/null; then
     echo "  ✓ asciicast2gif 已安装"
 else

@@ -159,10 +159,26 @@ function fallbackCopy(btn) {{
   }}).catch(() => alert('复制失败，请手动全选复制'));
 }}
 
-function copyHTML(btn) {{
+async function copyHTML(btn) {{
   if (!copyHTMLData) return;
   try {{
-    const blob = new Blob([copyHTMLData], {{type: 'text/html'}});
+    let html = copyHTMLData;
+    // Fallback: Canvas convert any remaining inline SVGs
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    const svgs = container.querySelectorAll('svg');
+    if (svgs.length > 0) {{
+      btn.textContent = '⏳ 转换中...';
+      for (const svg of svgs) {{
+        try {{
+          const svgData = new XMLSerializer().serializeToString(svg);
+          const b64 = btoa(unescape(encodeURIComponent(svgData)));
+          svg.outerHTML = '<img src=\"data:image/svg+xml;base64,' + b64 + '\" style=\"max-width:100%;height:auto;display:block;margin:1.2em auto\" width=\"100%\" alt=\"diagram\"/>';
+        }} catch(e) {{}}
+      }}
+      html = container.innerHTML;
+    }}
+    const blob = new Blob([html], {{type: 'text/html'}});
     navigator.clipboard.write([new ClipboardItem({{'text/html': blob}})]).then(() => {{
       btn.textContent = '✅ 已复制';
       setTimeout(() => btn.textContent = '📋 复制 HTML', 1500);
@@ -248,28 +264,15 @@ async def serve_render(slug: str, theme: str | None = Query(None)):
     title, _, body = post
     body = clean_hugo(body, app.state.base_url)
 
-    # Display: local markdown-it + basic inline styles (preserves SVG perfectly)
-    from convert import local_render
-    md_with_title = f"# {title}\n\n{body}"
     loop = asyncio.get_running_loop()
-    raw = await loop.run_in_executor(None, local_render, md_with_title)
-    display_html = (
-        f'<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif;'
-        f'font-size:16px;color:#3f3f3f;line-height:1.8;word-break:break-word">'
-        f'{raw}</div>'
-    )
+    if app.state.svg_to_image:
+        body = await loop.run_in_executor(None, svg_to_img, body)
 
-    # Copy: markdown2wechat API (themed, WeChat compatible)
     try:
+        display_html = await render_markdown(f'# {title}\n\n{body}', theme)
         copy_html = await render_markdown(body, theme)
     except RuntimeError as e:
-        copy_html = display_html  # fallback to local render
-
-    if app.state.svg_to_image:
-        # Preview keeps inline SVG (browser renders perfectly)
-        # Copy HTML converts to PNG (WeChat compatible)
-        loop = asyncio.get_running_loop()
-        copy_html = await loop.run_in_executor(None, svg_to_img, copy_html)
+        return JSONResponse({"success": False, "error": str(e)}, 500)
 
     return {"success": True, "html": display_html, "copy_html": copy_html}
 

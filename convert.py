@@ -214,33 +214,47 @@ def post_process(html_content: str, author: str = 'whitefirer') -> str:
 # ── SVG → Image (mobile WeChat compat) ─────────────────────────
 
 def svg_to_img(html_content: str) -> str:
-    """内联 <svg> → PNG (headless Chromium 渲染)"""
+    """内联 <svg> → <img> (resvg PNG 优先, base64 SVG 备选)"""
     import os, tempfile
+
+    # Font search path: project fonts first, then system
+    _FONT_DIRS = [
+        str(Path(__file__).resolve().parent / 'fonts'),
+        '/usr/share/fonts',
+        '/usr/local/share/fonts',
+    ]
+    _FONT_ARGS = []
+    for d in _FONT_DIRS:
+        if Path(d).is_dir():
+            _FONT_ARGS += ['--use-fonts-dir', d]
+
     def _replace(m: re.Match) -> str:
         svg = m.group(0)
-        html_fd, html_path = tempfile.mkstemp(suffix='.html')
-        png_path = html_path + '.png'
+        svg_path = png_path = None
         try:
-            # Calculate window size from viewBox or default to generous
-            vb = re.search(r'viewBox="\S+\s+\S+\s+(\S+)\s+(\S+)"', svg)
-            vw, vh = (int(float(vb.group(1))), int(float(vb.group(2)))) if vb else (800, 600)
-            w = min(vw + 40, 1920)  # +padding, cap at 1920
-            h = vh + 100  # +padding for margins
-            page = f'<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;background:#fff;display:flex;justify-content:center">{svg}</body></html>'
-            Path(html_path).write_text(page, encoding='utf-8')
-            subprocess.run(
-                ['chromium', '--headless=new', f'--screenshot={png_path}',
-                 f'--window-size={w},{h}', '--hide-scrollbars', html_path],
-                capture_output=True, timeout=15, check=True
-            )
+            svg_fd, svg_path = tempfile.mkstemp(suffix='.svg')
+            png_fd, png_path = tempfile.mkstemp(suffix='.png')
+            # Map generic fonts to available ones for resvg
+            svg_rendered = svg.replace('system-ui', 'Noto Sans CJK SC')
+            Path(svg_path).write_text(svg_rendered, encoding='utf-8')
+            subprocess.run([
+                'resvg', '--zoom', '2.5',
+                '--sans-serif-family', 'Noto Sans CJK SC',
+                '--font-family', 'Noto Sans CJK SC',
+                *_FONT_ARGS,
+                svg_path, png_path
+            ], capture_output=True, timeout=10, check=True)
             b64 = base64.b64encode(Path(png_path).read_bytes()).decode()
             return f'<img src="data:image/png;base64,{b64}" style="max-width:100%;height:auto;display:block;margin:1.2em auto" width="100%" alt="diagram"/>'
         except Exception:
             b64 = base64.b64encode(svg.encode()).decode()
-            return f'<img src="data:image/svg+xml;base64,{b64}" style="max-width:100%;height:auto;display:block;margin:1.2em auto" width="100%" alt="diagram"/>'
+            w = re.search(r'width="([^"]*)"', svg)
+            attrs = ''
+            if w: attrs += f' width="{w.group(1)}"'
+            return f'<img src="data:image/svg+xml;base64,{b64}" style="max-width:100%;height:auto;display:block;margin:1.2em auto"{attrs} alt="diagram"/>'
         finally:
-            Path(html_path).unlink(missing_ok=True)
-            Path(png_path).unlink(missing_ok=True)
+            if svg_path: Path(svg_path).unlink(missing_ok=True)
+            if png_path: Path(png_path).unlink(missing_ok=True)
     return re.sub(r'<svg\b[^>]*>.*?</svg>', _replace, html_content, flags=re.DOTALL)
 
 
@@ -280,6 +294,7 @@ def convert_one(
     print(f"📄 {title}")
     print(f"   预处理...")
     body = clean_hugo(body, base_url)
+    body = svg_to_img(body)
 
     print(f"   渲染...")
     if use_api:
