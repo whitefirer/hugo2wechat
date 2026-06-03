@@ -66,12 +66,6 @@ def fetch_text(source: str) -> tuple[str, Path | None]:
 
 # ── Mermaid ───────────────────────────────────────────────────
 
-def _mermaid_ink(mermaid_code: str) -> str:
-    encoded = base64.urlsafe_b64encode(mermaid_code.encode()).decode()
-    url = f"https://mermaid.ink/img/{encoded}"
-    return f'<p style="text-align:center"><img src="{url}" alt="mermaid diagram"/></p>'
-
-
 def _mermaid_mmdc(mermaid_code: str) -> str | None:
     import tempfile
     try:
@@ -79,14 +73,16 @@ def _mermaid_mmdc(mermaid_code: str) -> str | None:
             f.write(mermaid_code)
             mmd_path = f.name
         png_path = mmd_path + '.png'
+        import os
+        env = {**os.environ, 'PUPPETEER_EXECUTABLE_PATH': '/usr/bin/chromium'}
         subprocess.run(
             ['mmdc', '-i', mmd_path, '-o', png_path, '-b', 'transparent'],
-            capture_output=True, timeout=30, check=True
+            capture_output=True, timeout=30, check=True, env=env
         )
         b64 = base64.b64encode(Path(png_path).read_bytes()).decode()
         Path(mmd_path).unlink(missing_ok=True)
         Path(png_path).unlink(missing_ok=True)
-        return f'<p style="text-align:center"><img src="data:image/png;base64,{b64}" alt="mermaid diagram"/></p>'
+        return f'\n\n![mermaid](data:image/png;base64,{b64})\n\n'
     except Exception:
         return None
 
@@ -97,7 +93,7 @@ def _mermaid_to_img(match: re.Match) -> str:
         result = _mermaid_mmdc(code)
         if result:
             return result
-    return _mermaid_ink(code)
+    return f'\n\n```mermaid\n{code}\n```\n\n'
 
 
 # ── Asciinema ─────────────────────────────────────────────────
