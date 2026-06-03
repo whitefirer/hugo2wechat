@@ -38,16 +38,35 @@ python3 convert.py -c wechat.yml
 cd markdown2wechat/next && npx next dev -p 3456
 ```
 
+## 转换支持
+
+| Hugo 元素 | 处理方式 | 状态 |
+|-----------|----------|:----:|
+| Frontmatter | 剥离，title 用作标题 | ✅ |
+| `{{< mermaid >}}` | mermaid.ink API / mmdc → PNG | ✅ |
+| `{{< asciinema >}}` | agg / asciicast2gif → GIF | ✅ |
+| `{{< image >}}` | 移除 shortcode 标签 | ✅ |
+| `{{< raw >}}` `{{< tab >}}` 等 | 移除标签，保留内容 | ✅ |
+| 系列导航 | 删除导航块 | ✅ |
+| 相对链接 | `/posts/x/` → `https://whitefirer.org/posts/x/` | ✅ |
+| 内联 `<svg>` | → `<img src='data:image/svg+xml;base64,...'>` | ✅ |
+| markdown2wechat 主题 | `--api` 调用排版引擎 | ✅ |
+| mdnice 残留属性 | 清理 `data-website` 等 | ✅ |
+| 文末署名 | 追加 `— author` | ✅ |
+
 ## 管道流程
+
+详见 [DESIGN.md](DESIGN.md)
 
 ```
 Hugo .md
   ↓ 剥 frontmatter
-  ↓ mermaid → 图片 (mermaid.ink / mmdc)
-  ↓ asciinema → 占位符
+  ↓ mermaid → 图片
+  ↓ asciinema → GIF
   ↓ 系列导航删除
   ↓ Hugo shortcode 清理
   ↓ 相对链接补全
+  ↓ SVG → image (可选)
   ↓
 干净 Markdown
   ↓ markdown2wechat API / markdown-it-py 本地

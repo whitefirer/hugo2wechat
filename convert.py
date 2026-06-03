@@ -102,14 +102,38 @@ def _mermaid_to_img(match: re.Match) -> str:
 
 # ── Asciinema ─────────────────────────────────────────────────
 
-def _asciinema_placeholder(match: re.Match) -> str:
-    src = match.group(1).strip()
-    return (
-        f'<div style="background:#f5f5f5;border:1px dashed #ccc;'
-        f'padding:20px;text-align:center;color:#888;margin:1em 0;border-radius:4px">'
-        f'[终端录屏: <a href="{html.escape(src)}" style="color:#4a90d9">{html.escape(src)}</a>]<br>'
-        f'<small>安装 asciicast2gif 后自动转 GIF，或手动转换</small></div>'
-    )
+def _convert_asciinema(src: str) -> str:
+    """asciinema .cast → GIF (agg 优先, asciicast2gif 备选)"""
+    import tempfile
+    gif_path = None
+    try:
+        gif_fd, gif_path = tempfile.mkstemp(suffix='.gif')
+        if subprocess.run(['which', 'agg'], capture_output=True).returncode == 0:
+            subprocess.run(['agg', src, gif_path], capture_output=True, timeout=60, check=True)
+        elif subprocess.run(['which', 'asciicast2gif'], capture_output=True).returncode == 0:
+            subprocess.run(['asciicast2gif', '-S', '2', src, gif_path], capture_output=True, timeout=120, check=True)
+        else:
+            raise FileNotFoundError('no converter (install agg: see setup.sh)')
+
+        b64 = base64.b64encode(Path(gif_path).read_bytes()).decode()
+        return (
+            f'<p style="text-align:center"><img src="data:image/gif;base64,{b64}"'
+            f' alt="terminal recording" style="max-width:100%"/></p>'
+        )
+    except Exception as e:
+        return (
+            f'<div style="background:#f5f5f5;border:1px dashed #ccc;'
+            f'padding:20px;text-align:center;color:#888;margin:1em 0;border-radius:4px">'
+            f'[终端录屏: <a href="{html.escape(src)}" style="color:#4a90d9">{html.escape(src)}</a>]'
+            f'<br><small>{html.escape(str(e)[:100])}</small></div>'
+        )
+    finally:
+        if gif_path:
+            Path(gif_path).unlink(missing_ok=True)
+
+
+def _asciinema_to_gif(match: re.Match) -> str:
+    return _convert_asciinema(match.group(1).strip())
 
 
 # ── Cleanup ───────────────────────────────────────────────────
@@ -120,8 +144,8 @@ def clean_hugo(content: str) -> str:
         _mermaid_to_img, content, flags=re.DOTALL
     )
     content = re.sub(
-        r'{{<\s*asciinema\s+src="([^"]+)"\s*>}}',
-        _asciinema_placeholder, content
+        r'{{<\s*asciinema\s[^>]*src="([^"]+)"[^>]*>}}',
+        _asciinema_to_gif, content
     )
     content = re.sub(
         r'<div class="post-series-nav">.*?</div>',
