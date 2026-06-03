@@ -214,30 +214,32 @@ def post_process(html_content: str, author: str = 'whitefirer') -> str:
 # ── SVG → Image (mobile WeChat compat) ─────────────────────────
 
 def svg_to_img(html_content: str) -> str:
-    """内联 <svg> → PNG (ImageMagick 渲染)，全浏览器兼容"""
-    import tempfile
+    """内联 <svg> → PNG (headless Chromium 渲染)"""
+    import os, tempfile
     def _replace(m: re.Match) -> str:
         svg = m.group(0)
-        svg_fd, svg_path = tempfile.mkstemp(suffix='.svg')
-        png_fd, png_path = tempfile.mkstemp(suffix='.png')
+        html_fd, html_path = tempfile.mkstemp(suffix='.html')
+        png_path = html_path + '.png'
         try:
-            Path(svg_path).write_text(svg, encoding='utf-8')
+            # Calculate window size from viewBox or default to generous
+            vb = re.search(r'viewBox="\S+\s+\S+\s+(\S+)\s+(\S+)"', svg)
+            vw, vh = (int(float(vb.group(1))), int(float(vb.group(2)))) if vb else (800, 600)
+            w = min(vw + 40, 1920)  # +padding, cap at 1920
+            h = vh + 100  # +padding for margins
+            page = f'<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;background:#fff;display:flex;justify-content:center">{svg}</body></html>'
+            Path(html_path).write_text(page, encoding='utf-8')
             subprocess.run(
-                ['convert', '-density', '192', '-background', 'white', '-flatten',
-                 svg_path, png_path],
+                ['chromium', '--headless=new', f'--screenshot={png_path}',
+                 f'--window-size={w},{h}', '--hide-scrollbars', html_path],
                 capture_output=True, timeout=15, check=True
             )
             b64 = base64.b64encode(Path(png_path).read_bytes()).decode()
-            w = re.search(r'viewBox="[^"]*"', svg)
-            attrs = ' style="max-width:100%;height:auto;display:block;margin:1.2em auto"'
-            if w: attrs += ' width="100%"'
-            return f'<img src="data:image/png;base64,{b64}"{attrs} alt="diagram"/>'
+            return f'<img src="data:image/png;base64,{b64}" style="max-width:100%;height:auto;display:block;margin:1.2em auto" width="100%" alt="diagram"/>'
         except Exception:
-            # Fallback: embed as SVG data URI
             b64 = base64.b64encode(svg.encode()).decode()
             return f'<img src="data:image/svg+xml;base64,{b64}" style="max-width:100%;height:auto;display:block;margin:1.2em auto" width="100%" alt="diagram"/>'
         finally:
-            Path(svg_path).unlink(missing_ok=True)
+            Path(html_path).unlink(missing_ok=True)
             Path(png_path).unlink(missing_ok=True)
     return re.sub(r'<svg\b[^>]*>.*?</svg>', _replace, html_content, flags=re.DOTALL)
 
