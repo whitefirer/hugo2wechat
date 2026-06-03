@@ -149,7 +149,17 @@ def clean_hugo(content: str) -> str:
         r'\*本文是「[^」]+」系列之[一|二|三|四|五|六|七|八|九|十].*?\*',
         '', content
     )
-    content = re.sub(r'{{<\s*image\s+[^>]*>}}', '', content)
+    # image shortcode → markdown image
+    def _image_replace(m):
+        src = re.search(r'src="([^"]+)"', m.group(0))
+        alt = re.search(r'alt="([^"]*)"', m.group(0))
+        if src:
+            url = src.group(1)
+            if url.startswith('/'):
+                url = 'https://whitefirer.org' + url
+            return f'\n\n![{alt.group(1) if alt else ""}]({url})\n\n'
+        return ''
+    content = re.sub(r'{{<\s*image\s+[^>]*>}}', _image_replace, content)
     content = re.sub(r'{{<\s*\w+[^>]*>}}', '', content)
     content = re.sub(r'{{<\s*/\w+\s*>}}', '', content)
     content = re.sub(r'\]\(/posts/', '](https://whitefirer.org/posts/', content)
