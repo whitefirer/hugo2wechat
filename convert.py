@@ -66,33 +66,31 @@ def fetch_text(source: str) -> tuple[str, Path | None]:
 
 # ── Mermaid ───────────────────────────────────────────────────
 
-def _mermaid_mmdc(mermaid_code: str) -> str | None:
-    import tempfile
-    try:
-        with tempfile.NamedTemporaryFile(suffix='.mmd', mode='w', delete=False) as f:
-            f.write(mermaid_code)
-            mmd_path = f.name
-        png_path = mmd_path + '.png'
-        import os
-        env = {**os.environ, 'PUPPETEER_EXECUTABLE_PATH': '/usr/bin/chromium'}
-        subprocess.run(
-            ['mmdc', '-i', mmd_path, '-o', png_path, '-b', 'transparent'],
-            capture_output=True, timeout=30, check=True, env=env
-        )
-        b64 = base64.b64encode(Path(png_path).read_bytes()).decode()
-        Path(mmd_path).unlink(missing_ok=True)
-        Path(png_path).unlink(missing_ok=True)
-        return f'\n\n![mermaid](data:image/png;base64,{b64})\n\n'
-    except Exception:
-        return None
-
-
 def _mermaid_to_img(match: re.Match) -> str:
+    """Mermaid → PNG (mmdc + Chromium，纯本地)"""
+    import os, tempfile
     code = match.group(1).strip()
+
+    # mmdc + Chromium
     if subprocess.run(['which', 'mmdc'], capture_output=True).returncode == 0:
-        result = _mermaid_mmdc(code)
-        if result:
-            return result
+        try:
+            mmd_fd, mmd_path = tempfile.mkstemp(suffix='.mmd')
+            with open(mmd_fd, 'w') as f:
+                f.write(code)
+            png_path = mmd_path + '.png'
+            env = {**os.environ, 'PUPPETEER_EXECUTABLE_PATH': '/usr/bin/chromium'}
+            subprocess.run(
+                ['mmdc', '-i', mmd_path, '-o', png_path, '-b', 'transparent'],
+                capture_output=True, timeout=30, check=True, env=env
+            )
+            b64 = base64.b64encode(Path(png_path).read_bytes()).decode()
+            Path(mmd_path).unlink(missing_ok=True)
+            Path(png_path).unlink(missing_ok=True)
+            return f'\n\n![mermaid](data:image/png;base64,{b64})\n\n'
+        except Exception:
+            Path(mmd_path).unlink(missing_ok=True)
+            Path(png_path).unlink(missing_ok=True)
+
     return f'\n\n```mermaid\n{code}\n```\n\n'
 
 
