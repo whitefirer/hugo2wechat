@@ -132,7 +132,7 @@ def _asciinema_to_gif(match: re.Match) -> str:
 
 # ── Cleanup ───────────────────────────────────────────────────
 
-def clean_hugo(content: str) -> str:
+def clean_hugo(content: str, base_url: str = 'https://whitefirer.org') -> str:
     content = re.sub(
         r'{{<\s*mermaid\s*>}}\s*(.*?)\s*{{<\s*/mermaid\s*>}}',
         _mermaid_to_img, content, flags=re.DOTALL
@@ -156,14 +156,14 @@ def clean_hugo(content: str) -> str:
         if src:
             url = src.group(1)
             if url.startswith('/'):
-                url = 'https://whitefirer.org' + url
+                url = base_url + url
             return f'\n\n![{alt.group(1) if alt else ""}]({url})\n\n'
         return ''
     content = re.sub(r'{{<\s*image\s+[^>]*>}}', _image_replace, content)
     content = re.sub(r'{{<\s*\w+[^>]*>}}', '', content)
     content = re.sub(r'{{<\s*/\w+\s*>}}', '', content)
-    content = re.sub(r'\]\(/posts/', '](https://whitefirer.org/posts/', content)
-    content = re.sub(r'\]\(/(?!/)', '](https://whitefirer.org/', content)
+    content = re.sub(r'\]\(/posts/', f']({base_url}/posts/', content)
+    content = re.sub(r'\]\(/(?!/)', f']({base_url}/', content)
     return content.strip()
 
 
@@ -214,16 +214,31 @@ def post_process(html_content: str, author: str = 'whitefirer') -> str:
 # ── SVG → Image (mobile WeChat compat) ─────────────────────────
 
 def svg_to_img(html_content: str) -> str:
-    """内联 <svg> → <img src='data:image/svg+xml;base64,...'> , 手机微信兼容"""
+    """内联 <svg> → PNG (ImageMagick 渲染)，全浏览器兼容"""
+    import tempfile
     def _replace(m: re.Match) -> str:
         svg = m.group(0)
-        b64 = base64.b64encode(svg.encode()).decode()
-        w = re.search(r'width="([^"]*)"', svg)
-        h = re.search(r'height="([^"]*)"', svg)
-        attrs = ''
-        if w: attrs += f' width="{w.group(1)}"'
-        if h: attrs += f' height="{h.group(1)}"'
-        return f'<img src="data:image/svg+xml;base64,{b64}"{attrs} alt="diagram"/>'
+        svg_fd, svg_path = tempfile.mkstemp(suffix='.svg')
+        png_fd, png_path = tempfile.mkstemp(suffix='.png')
+        try:
+            Path(svg_path).write_text(svg, encoding='utf-8')
+            subprocess.run(
+                ['convert', '-density', '192', '-background', 'white', '-flatten',
+                 svg_path, png_path],
+                capture_output=True, timeout=15, check=True
+            )
+            b64 = base64.b64encode(Path(png_path).read_bytes()).decode()
+            w = re.search(r'viewBox="[^"]*"', svg)
+            attrs = ' style="max-width:100%;height:auto;display:block;margin:1.2em auto"'
+            if w: attrs += ' width="100%"'
+            return f'<img src="data:image/png;base64,{b64}"{attrs} alt="diagram"/>'
+        except Exception:
+            # Fallback: embed as SVG data URI
+            b64 = base64.b64encode(svg.encode()).decode()
+            return f'<img src="data:image/svg+xml;base64,{b64}" style="max-width:100%;height:auto;display:block;margin:1.2em auto" width="100%" alt="diagram"/>'
+        finally:
+            Path(svg_path).unlink(missing_ok=True)
+            Path(png_path).unlink(missing_ok=True)
     return re.sub(r'<svg\b[^>]*>.*?</svg>', _replace, html_content, flags=re.DOTALL)
 
 
@@ -251,6 +266,7 @@ def convert_one(
     theme: str | None = None,
     output: str | None = None,
     author: str = 'whitefirer',
+    base_url: str = 'https://whitefirer.org',
 ) -> Path:
     text, local_dir = fetch_text(source)
     meta, body = strip_frontmatter(text)
@@ -261,7 +277,7 @@ def convert_one(
 
     print(f"📄 {title}")
     print(f"   预处理...")
-    body = clean_hugo(body)
+    body = clean_hugo(body, base_url)
 
     print(f"   渲染...")
     if use_api:
@@ -314,6 +330,7 @@ def main():
     parser.add_argument('-o', '--output', help='输出文件路径')
     parser.add_argument('-c', '--config', help='配置文件 (YAML/JSON)，批量转换')
     parser.add_argument('--author', default='whitefirer', help='文末署名 (默认 whitefirer)')
+    parser.add_argument('--base-url', default='https://whitefirer.org', help='相对链接补全域名')
     args = parser.parse_args()
 
     if args.config:
@@ -339,10 +356,10 @@ def main():
                     stem = parts[-2] if parts[-1] in ('index.md', '_index.md') and len(parts) >= 2 else Path(inp).stem
                 out = str(Path(output_dir) / f'{stem}-wechat.html')
             print(f"\n[{i+1}/{len(posts)}]")
-            convert_one(inp, use_api, api_url, theme, out, author)
+            convert_one(inp, use_api, api_url, theme, out, author, args.base_url)
         print(f"\n🏁 全部完成")
     elif args.source:
-        convert_one(args.source, args.api, args.api_url, args.theme, args.output, args.author)
+        convert_one(args.source, args.api, args.api_url, args.theme, args.output, args.author, args.base_url)
     else:
         parser.print_help()
         sys.exit(1)

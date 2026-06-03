@@ -22,6 +22,7 @@ app = FastAPI(title="hugo2wechat preview")
 app.state.content_dir = Path.cwd() / "content" / "posts"
 app.state.api_base = "http://localhost:3456"
 app.state.svg_to_image = True
+app.state.base_url = 'https://whitefirer.org'
 
 _client: httpx.AsyncClient | None = None
 
@@ -245,21 +246,29 @@ async def serve_render(slug: str, theme: str | None = Query(None)):
         return JSONResponse({"success": False, "error": "文章不存在"}, 404)
 
     title, _, body = post
-    body = clean_hugo(body)
+    body = clean_hugo(body, app.state.base_url)
 
-    # Render with title for display
+    # Display: local markdown-it + basic inline styles (preserves SVG perfectly)
+    from convert import local_render
     md_with_title = f"# {title}\n\n{body}"
+    loop = asyncio.get_running_loop()
+    raw = await loop.run_in_executor(None, local_render, md_with_title)
+    display_html = (
+        f'<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif;'
+        f'font-size:16px;color:#3f3f3f;line-height:1.8;word-break:break-word">'
+        f'{raw}</div>'
+    )
+
+    # Copy: markdown2wechat API (themed, WeChat compatible)
     try:
-        display_html = await render_markdown(md_with_title, theme)
-        # Render body-only for copy
         copy_html = await render_markdown(body, theme)
     except RuntimeError as e:
-        return JSONResponse({"success": False, "error": str(e)}, 500)
+        copy_html = display_html  # fallback to local render
 
     if app.state.svg_to_image:
-        # Run in thread to avoid blocking (svg_to_img is CPU-bound regex)
+        # Preview keeps inline SVG (browser renders perfectly)
+        # Copy HTML converts to PNG (WeChat compatible)
         loop = asyncio.get_running_loop()
-        display_html = await loop.run_in_executor(None, svg_to_img, display_html)
         copy_html = await loop.run_in_executor(None, svg_to_img, copy_html)
 
     return {"success": True, "html": display_html, "copy_html": copy_html}
@@ -282,11 +291,13 @@ def main():
     parser.add_argument("--content-dir", default=str(Path.cwd() / "content" / "posts"))
     parser.add_argument("--api-base", default="http://localhost:3456")
     parser.add_argument("--no-svg-to-image", action="store_true", help="禁用 SVG→图片 转换")
+    parser.add_argument("--base-url", default="https://whitefirer.org", help="相对链接补全域名")
     args = parser.parse_args()
 
     app.state.content_dir = Path(args.content_dir)
     app.state.api_base = args.api_base
     app.state.svg_to_image = not args.no_svg_to_image
+    app.state.base_url = args.base_url
 
     if args.config:
         from convert import load_config
@@ -297,6 +308,8 @@ def main():
             app.state.api_base = cfg["api_base"]
         if "no_svg_to_image" in cfg:
             app.state.svg_to_image = not cfg["no_svg_to_image"]
+        if "base_url" in cfg:
+            app.state.base_url = cfg["base_url"]
 
     print(f"📱 微信预览服务器 (FastAPI)")
     print(f"   地址: http://{args.host}:{args.port}")
