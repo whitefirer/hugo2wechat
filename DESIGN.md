@@ -1,75 +1,74 @@
 # Hugo → 微信公众号 转换管道
 
-公众号：赛博闲谭
-作者：whitefirer
-
-## 用法
-
-```
-"把这篇文章转公众号" → Claude Code 读 Hugo MD → 预处理 → 微信 HTML → 手动粘贴
-```
-
 ## 架构
 
 ```
 Hugo .md
     ↓
-Python 预处理管道 (convert.py)
+Python 预处理管道 (clean_hugo)
     ├── 剥 frontmatter
-    ├── mermaid → mermaid.ink API / mmdc 本地 (自动降级)
-    ├── asciinema → 占位符 (待 asciicast2gif)
-    ├── 相对链接补全
-    ├── Hugo shortcode 清理
-    ├── 系列导航删除
-    └── mdnice 属性清理 + 署名追加
+    ├── mermaid → mmdc + Chromium → PNG base64
+    ├── asciinema → agg → GIF base64 (并行)
+    ├── image shortcode → markdown 图片
+    ├── 系列导航删除 + shortcode 清理
+    └── 相对链接补全 (base_url)
     ↓
-干净 Markdown
+SVG 转换
+    ├── 内联 <svg> → resvg 2.5x → PNG base64
+    └── 外部 ./file.svg → Chromium + Pillow 裁边 → PNG base64
     ↓
-── 本地模式: markdown-it-py 渲染 (快速预览)
-── API 模式:  markdown2wechat API 渲染 (正式发布，内联样式)
+干净 Markdown (含 PNG img)
+    ↓
+markdown2wechat API 排版 (内联样式 + 代码高亮)
     ↓
 微信兼容 HTML
     ↓
-手动粘贴到公众号后台
+预览 / 复制粘贴到公众号
 ```
-
-自己写预处理管道，排版引擎调 markdown2wechat API。
-不自己写排版——微信 CSS 兼容是体力活，mdnice 主题已验证。
 
 ## 预处理清单
 
-| 操作 | 工具 | 状态 | 说明 |
-|------|------|------|------|
-| 剥 frontmatter | Python | ✅ | title → 公众号标题 |
-| `{{< mermaid >}}` | mermaid.ink API / mmdc | ✅ | 优先本地 mmdc，不可用则 mermaid.ink |
-| `{{< asciinema >}}` | — | ⏳ | 当前占位符，待 asciicast2gif |
-| 相对链接 | regex | ✅ | `/posts/xxx/` → `https://whitefirer.org/posts/xxx/` |
-| Hugo shortcode | regex | ✅ | 移除 `{{< raw >}}` `{{< tab >}}` 等标签 |
-| 系列导航删除 | regex | ✅ | 删 `*本文是「...」系列...*` 和 `<div class="post-series-nav">...</div>` |
-| 署名追加 | 文本 | ✅ | 末尾加 `— whitefirer` |
-| mdnice 属性清理 | regex | ✅ | 删 `data-website` 等冗余属性 |
-| 排版引擎 | api/local | ✅ | `--api` 调 markdown2wechat，默认本地 markdown-it |
+| 操作 | 工具 | 说明 |
+|------|------|------|
+| 剥 frontmatter | Python | title → 公众号标题 |
+| `{{< mermaid >}}` | mmdc + Chromium → PNG | clean_hugo 阶段 |
+| `{{< asciinema >}}` | agg → GIF (并行) | ThreadPoolExecutor, --fps-cap 15 |
+| `{{< image >}}` | 提取 src → markdown | 相对路径补全 base_url |
+| 内联 `<svg>` | resvg 2.5x → PNG | svg_to_img 阶段 |
+| 外部 `./file.svg` | Chromium + Pillow 裁边 | serve_render 阶段 |
+| 代码块高亮 | highlight.js Atom One Dark | JS 注入 inline style (公众号兼容) |
+| 系列导航/短代码清理 | regex | clean_hugo 阶段 |
+| 相对链接补全 | regex | `/posts/x/` → base_url |
+| 署名/mdnice 清理 | 后处理 | post_process 阶段 |
 
-## 不做的事
+## 服务
 
-- 不发 API（个人号无权限）
-- 不自动发布（需手动粘贴）
-- 不管理图片 CDN（以后再说）
+| 服务 | 端口 | 技术 |
+|------|------|------|
+| 预览服务器 | 3333 | FastAPI + SSE 实时进度 |
+| 排版引擎 | 3456 | markdown2wechat (Next.js) |
+| Hugo 预览 | 1313 | hugo server -D |
 
 ## 核心依赖
 
-- markdown2wechat (MIT, Next.js) — 排版引擎，爬 mdnice 主题
-- mermaid-cli (`@mermaid-js/mermaid-cli`) — `mmdc` 命令
-- asciicast2gif — asciinema → GIF
-- Python 标准库 — frontmatter 解析、正则、HTTP 调 API
+- resvg — 内联 SVG 渲染 (apt)
+- Chromium — 外部 SVG + mermaid 渲染 (系统)
+- mmdc — mermaid CLI (npm)
+- agg — asciinema → GIF (GitHub Release)
+- Pillow — PNG 自动裁边 (pip)
+- markdown2wechat — 排版引擎 (Next.js)
+- FastAPI + uvicorn + httpx — 预览服务器
 
 ## 文件
 
 ```
-scripts/wechat/
-├── DESIGN.md       # 本文件
-├── convert.py      # 主转换脚本（Hugo MD → 预处理 → 渲染 → HTML）
-├── setup.sh        # 一键依赖安装
-├── requirements.txt # Python 依赖
-└── themes/         # 自定义主题（markdown2wechat 导入）
+hugo2wechat/
+├── convert.py          # 转换主脚本
+├── preview.py          # 预览服务器 (FastAPI + SSE)
+├── setup.sh            # 一键依赖安装
+├── requirements.txt    # Python 依赖
+├── wechat.example.yml  # 批量配置示例
+├── DESIGN.md           # 本文件
+├── fonts/              # 项目字体
+└── README.md
 ```
