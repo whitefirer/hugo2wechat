@@ -64,12 +64,8 @@ cd markdown2wechat/next && npx next dev -p 3456
 | SVG → PNG (外部) | Chromium + Pillow | 系统 Chromium, `pip install Pillow` |
 | Mermaid → PNG | `mmdc` + Chromium | `npm i -g @mermaid-js/mermaid-cli` |
 | Asciinema → GIF | `agg` (并行) | GitHub Release 下载 |
-|------|------|------|
-| SVG → PNG | `resvg` | `sudo apt install resvg` |
-| Mermaid → PNG | `mmdc` + Chromium | `npm i -g @mermaid-js/mermaid-cli` |
-| Asciinema → GIF | `agg` | GitHub Release 下载 |
 | 排版引擎 | markdown2wechat | `npx next dev -p 3456` |
-| 预览服务器 | FastAPI + uvicorn + httpx | `pip install -r requirements.txt` |
+| 预览服务器 | FastAPI + uvicorn + httpx + Pillow | `pip install -r requirements.txt` |
 
 ## 管道流程
 
@@ -96,11 +92,14 @@ Hugo .md
 
 ```
 hugo2wechat/
-├── convert.py          # 主脚本
-├── setup.sh            # 依赖安装
+├── convert.py          # 转换主脚本
+├── preview.py          # 预览服务器 (FastAPI + SSE)
+├── setup.sh            # 一键依赖安装
 ├── requirements.txt    # Python 依赖
 ├── wechat.example.yml  # 批量配置示例
 ├── DESIGN.md           # 架构设计
+├── fonts/              # 项目字体 (Noto Sans CJK SC)
+├── .gitignore
 └── README.md
 ```
 
