@@ -32,18 +32,28 @@ else
     echo "  ✓ agg ${AGG_VER} 安装完成" || echo "  ⚠ agg 安装失败"
 fi
 
-# 4. resvg — SVG → PNG (快速、高保真)
+# 4. resvg — 内联 SVG → PNG (快速)
 echo ""
-echo "[4/5] resvg (SVG → PNG)..."
+echo "[4/5] resvg (内联 SVG → PNG)..."
 if command -v resvg &>/dev/null; then
     echo "  ✓ resvg 已安装"
 else
-    sudo apt-get install -y resvg -qq 2>/dev/null && echo "  ✓ resvg 安装完成" || echo "  ⚠ resvg 安装失败，将使用 base64 SVG"
+    sudo apt-get install -y resvg -qq 2>/dev/null && echo "  ✓ resvg 安装完成" || echo "  ⚠ resvg 安装失败"
 fi
 
-# 5. asciicast2gif — 备选方案 (需要 PhantomJS + ImageMagick)
+# 5. asciicast2gif — 备选 (需要 PhantomJS + ImageMagick)
 echo ""
-echo "[5/5] asciicast2gif (备选，需要 PhantomJS)..."
+echo "[5/5] asciicast2gif (备选)..."
+if command -v asciicast2gif &>/dev/null; then
+    echo "  ✓ asciicast2gif 已安装"
+else
+    npm install -g asciicast2gif --ignore-scripts 2>/dev/null && echo "  ✓ asciicast2gif 安装完成" || echo "  ⚠ asciicast2gif 安装失败 (非必需，agg 替代)"
+fi
+
+# 额外: 中文字体 (可选)
+echo ""
+echo "字体: 项目自带 Noto Sans CJK SC (fonts/ 目录)"
+echo "如缺失可手动放入 fonts/ 或安装系统字体包"
 if command -v asciicast2gif &>/dev/null; then
     echo "  ✓ asciicast2gif 已安装"
 else

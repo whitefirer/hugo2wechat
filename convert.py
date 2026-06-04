@@ -20,6 +20,7 @@
 import sys
 import re
 import html
+import time
 import json
 import base64
 import subprocess
@@ -103,7 +104,7 @@ def _convert_asciinema(src: str) -> str:
     try:
         gif_fd, gif_path = tempfile.mkstemp(suffix='.gif')
         if subprocess.run(['which', 'agg'], capture_output=True).returncode == 0:
-            subprocess.run(['agg', src, gif_path], capture_output=True, timeout=60, check=True)
+            subprocess.run(['agg', '--fps-cap', '15', src, gif_path], capture_output=True, timeout=60, check=True)
         elif subprocess.run(['which', 'asciicast2gif'], capture_output=True).returncode == 0:
             subprocess.run(['asciicast2gif', '-S', '2', src, gif_path], capture_output=True, timeout=120, check=True)
         else:
@@ -132,36 +133,72 @@ def _asciinema_to_gif(match: re.Match) -> str:
 
 # ── Cleanup ───────────────────────────────────────────────────
 
-def clean_hugo(content: str, base_url: str = 'https://whitefirer.org') -> str:
-    content = re.sub(
-        r'{{<\s*mermaid\s*>}}\s*(.*?)\s*{{<\s*/mermaid\s*>}}',
-        _mermaid_to_img, content, flags=re.DOTALL
-    )
-    content = re.sub(
-        r'{{<\s*asciinema\s[^>]*src="([^"]+)"[^>]*>}}',
-        _asciinema_to_gif, content
-    )
-    content = re.sub(
-        r'<div class="post-series-nav">.*?</div>',
-        '', content, flags=re.DOTALL
-    )
-    content = re.sub(
-        r'\*本文是「[^」]+」系列之[一|二|三|四|五|六|七|八|九|十].*?\*',
-        '', content
-    )
-    # image shortcode → markdown image
-    def _image_replace(m):
-        src = re.search(r'src="([^"]+)"', m.group(0))
-        alt = re.search(r'alt="([^"]*)"', m.group(0))
-        if src:
-            url = src.group(1)
-            if url.startswith('/'):
-                url = base_url + url
-            return f'\n\n![{alt.group(1) if alt else ""}]({url})\n\n'
-        return ''
-    content = re.sub(r'{{<\s*image\s+[^>]*>}}', _image_replace, content)
+def clean_hugo(content: str, base_url: str = 'https://whitefirer.org',
+               progress: callable = None) -> str:
+    def _report(step, status='done'):
+        if progress: progress(step, status)
+
+    # Mermaid — process one by one with progress
+    mermaids = list(re.finditer(r'{{<\s*mermaid\s*>}}\s*(.*?)\s*{{<\s*/mermaid\s*>}}', content, re.DOTALL))
+    for i, m in enumerate(mermaids):
+        code = m.group(1).strip()
+        first_line = code.split('\n')[0][:30]
+        label = f'Mermaid {i+1}/{len(mermaids)} ({first_line}...)'
+        _report(label, 'running')
+        t0 = time.time()
+        result = _mermaid_to_img(m)
+        ok = 'base64' in result
+        content = content.replace(m.group(0), result, 1)
+        _report(label, f'{"✓" if ok else "✗"} {time.time()-t0:.1f}s')
+
+    # Asciinema — parallel (max 2 workers)
+    asciis = list(re.finditer(r'{{<\s*asciinema\s[^>]*src="([^"]+)"[^>]*>}}', content))
+    if asciis:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        total = len(asciis)
+        futures = {}
+        with ThreadPoolExecutor(max_workers=min(total, 2)) as ex:
+            for i, m in enumerate(asciis):
+                src = m.group(1)
+                label = f'Asciinema {i+1}/{total} ({src[:40]}...)'
+                _report(label, 'running')
+                futures[ex.submit(_asciinema_to_gif, m)] = (i, m, label)
+            results = {}
+            for f in as_completed(futures):
+                i, m, label = futures[f]
+                results[i] = f.result()
+                ok = 'base64' in results[i]
+                _report(label, f'{"✓" if ok else "✗"}')
+        # Apply replacements in reverse order
+        for i, m in reversed(list(enumerate(asciis))):
+            content = content.replace(m.group(0), results[i], 1)
+
+    # Image shortcodes
+    img_count = len(re.findall(r'{{<\s*image\s+[^>]*>}}', content))
+    if img_count:
+        _report(f'图片短代码 ({img_count}个)', 'running')
+        def _image_replace(m):
+            src = re.search(r'src="([^"]+)"', m.group(0))
+            alt = re.search(r'alt="([^"]*)"', m.group(0))
+            if src:
+                url = src.group(1)
+                if url.startswith('/'):
+                    url = base_url + url
+                return f'\n\n![{alt.group(1) if alt else ""}]({url})\n\n'
+            return ''
+        content = re.sub(r'{{<\s*image\s+[^>]*>}}', _image_replace, content)
+        _report(f'图片短代码 ({img_count}个)')
+
+    # Inline SVGs (will be processed later by svg_to_img)
+    svg_count = len(re.findall(r'<svg\b', content))
+    if svg_count:
+        _report(f'内联SVG ({svg_count}个)')
+
+    # Misc cleanup
     content = re.sub(r'{{<\s*\w+[^>]*>}}', '', content)
     content = re.sub(r'{{<\s*/\w+\s*>}}', '', content)
+    content = re.sub(r'<div class="post-series-nav">.*?</div>', '', content, flags=re.DOTALL)
+    content = re.sub(r'\*本文是「[^」]+」系列之[一|二|三|四|五|六|七|八|九|十].*?\*', '', content)
     content = re.sub(r'\]\(/posts/', f']({base_url}/posts/', content)
     content = re.sub(r'\]\(/(?!/)', f']({base_url}/', content)
     return content.strip()
@@ -214,10 +251,9 @@ def post_process(html_content: str, author: str = 'whitefirer') -> str:
 # ── SVG → Image (mobile WeChat compat) ─────────────────────────
 
 def svg_to_img(html_content: str) -> str:
-    """内联 <svg> → <img> (resvg PNG 优先, base64 SVG 备选)"""
+    """内联 <svg> → PNG (resvg 快速渲染, base64 SVG 备选)"""
     import os, tempfile
 
-    # Font search path: project fonts first, then system
     _FONT_DIRS = [
         str(Path(__file__).resolve().parent / 'fonts'),
         '/usr/share/fonts',
@@ -234,7 +270,6 @@ def svg_to_img(html_content: str) -> str:
         try:
             svg_fd, svg_path = tempfile.mkstemp(suffix='.svg')
             png_fd, png_path = tempfile.mkstemp(suffix='.png')
-            # Map generic fonts to available ones for resvg
             svg_rendered = svg.replace('system-ui', 'Noto Sans CJK SC')
             Path(svg_path).write_text(svg_rendered, encoding='utf-8')
             subprocess.run([

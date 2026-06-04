@@ -50,13 +50,20 @@ cd markdown2wechat/next && npx next dev -p 3456
 | 系列导航 | 删除导航块 | ✅ |
 | 相对链接 | `/posts/x/` → 补全 `base_url` | ✅ |
 | 内联 `<svg>` | resvg → PNG (2.5x zoom) | ✅ |
+| 外部 `./file.svg` | Chromium + Pillow 裁边 → PNG | ✅ |
 | markdown2wechat 主题 | `--api` 调用排版引擎 | ✅ |
+| 代码高亮 | highlight.js Atom One Dark | ✅ |
 | mdnice 残留属性 | 清理 `data-website` 等 | ✅ |
 | 文末署名 | 追加 `— author` | ✅ |
 
 ### 关键依赖
 
 | 功能 | 工具 | 安装 |
+|------|------|------|
+| SVG → PNG (内联) | `resvg` | `sudo apt install resvg` |
+| SVG → PNG (外部) | Chromium + Pillow | 系统 Chromium, `pip install Pillow` |
+| Mermaid → PNG | `mmdc` + Chromium | `npm i -g @mermaid-js/mermaid-cli` |
+| Asciinema → GIF | `agg` (并行) | GitHub Release 下载 |
 |------|------|------|
 | SVG → PNG | `resvg` | `sudo apt install resvg` |
 | Mermaid → PNG | `mmdc` + Chromium | `npm i -g @mermaid-js/mermaid-cli` |
