@@ -199,6 +199,18 @@ def clean_hugo(content: str, base_url: str = 'https://whitefirer.org',
     if svg_count:
         _report(f'内联SVG ({svg_count}个)')
 
+    # Bilibili shortcodes → video link
+    bil_count = len(re.findall(r'{{<\s*bilibili\s+[^>]*>}}', content))
+    if bil_count:
+        _report(f'B站视频 ({bil_count}个)', 'running')
+        def _bil_replace(m):
+            bv = re.search(r'(BV\w+)', m.group(0))
+            if bv:
+                return f'\n\n> 原片可在 B站搜索「{bv.group(1)}」观看。\n\n'
+            return ''
+        content = re.sub(r'{{<\s*bilibili\s+[^>]*>}}', _bil_replace, content)
+        _report(f'B站视频 ({bil_count}个)')
+
     # Misc cleanup
     content = re.sub(r'{{<\s*\w+[^>]*>}}', '', content)
     content = re.sub(r'{{<\s*/\w+\s*>}}', '', content)
