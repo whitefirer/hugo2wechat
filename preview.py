@@ -9,6 +9,7 @@ import json
 import os
 import re
 import base64
+import mimetypes
 import subprocess
 import html as html_mod
 from pathlib import Path
@@ -262,6 +263,40 @@ async def serve_render(slug: str, theme: str | None = Query(None)):
         try:
             display_html = await render_markdown(f"# {input_title}\n\n{md_body}", theme)
             copy_html = await render_markdown(md_body, theme)
+            # Rewrite relative image paths → /article-assets/{slug}/{filename}
+            def _fix_img_paths(html):
+                return re.sub(
+                    r'src="((?!(?:https?:|/|data:))[^"]+)"',
+                    rf'src="/article-assets/{slug}/\1"',
+                    html
+                )
+            display_html = _fix_img_paths(display_html)
+            # Copy HTML embeds images as base64 for WeChat paste
+            def _embed_images(html):
+                def _replace(m):
+                    fname = m.group(1)
+                    fpath = post_dir / fname if post_dir else None
+                    if fpath and fpath.exists():
+                        from PIL import Image
+                        from io import BytesIO
+                        img = Image.open(fpath)
+                        if img.mode == 'RGBA':
+                            img = img.convert('RGB')
+                        w, h = img.size
+                        if w > 800:
+                            img = img.resize((800, int(h * 800 / w)), Image.LANCZOS)
+                        buf = BytesIO()
+                        img.save(buf, format='JPEG', quality=100, optimize=True)
+                        data = buf.getvalue()
+                        mime = 'image/jpeg'
+                        return f'src="data:{mime};base64,{base64.b64encode(data).decode()}"'
+                    return m.group(0)
+                return re.sub(
+                    r'src="((?!(?:https?:|/|data:))[^"]+)"',
+                    _replace,
+                    html
+                )
+            copy_html = _embed_images(copy_html)
             steps["排版"] = f"{time.time()-t0:.1f}s"
             yield sse("progress", {"step": "排版", "status": "done", "elapsed": steps["排版"]})
         except RuntimeError as e:
@@ -304,6 +339,9 @@ async def serve_article_images(slug: str):
     for m in re.finditer(r'<img[^>]+src="([^"]+)"', html_content):
         src = m.group(1)
         if src and not src.startswith('data:image/svg+xml'):
+            # Resolve relative paths → /article-assets/{slug}/...
+            if not src.startswith(('http', '/', 'data:')):
+                src = f'/article-assets/{slug}/{src}'
             images.append(src)
 
     return JSONResponse({"images": images})
@@ -473,6 +511,10 @@ def main():
             app.state.svg_to_image = not cfg["no_svg_to_image"]
         if "base_url" in cfg:
             app.state.base_url = cfg["base_url"]
+
+    # Mount article static files after content_dir is resolved
+    from starlette.staticfiles import StaticFiles
+    app.mount("/article-assets", StaticFiles(directory=str(app.state.content_dir)), name="article_assets")
 
     print(f"📱 微信预览服务器 (FastAPI)")
     print(f"   地址: http://{args.host}:{args.port}")

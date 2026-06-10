@@ -180,11 +180,16 @@ def clean_hugo(content: str, base_url: str = 'https://whitefirer.org',
         def _image_replace(m):
             src = re.search(r'src="([^"]+)"', m.group(0))
             alt = re.search(r'alt="([^"]*)"', m.group(0))
+            caption = re.search(r'caption="([^"]*)"', m.group(0))
             if src:
                 url = src.group(1)
                 if url.startswith('/'):
                     url = base_url + url
-                return f'\n\n![{alt.group(1) if alt else ""}]({url})\n\n'
+                alt_text = alt.group(1) if alt else ''
+                if caption:
+                    cap_text = caption.group(1)
+                    return f'\n\n<figure><img src="{url}" alt="{alt_text}"><figcaption>{cap_text}</figcaption></figure>\n\n'
+                return f'\n\n![{alt_text}]({url})\n\n'
             return ''
         content = re.sub(r'{{<\s*image\s+[^>]*>}}', _image_replace, content)
         _report(f'图片短代码 ({img_count}个)')
@@ -330,6 +335,20 @@ def convert_one(
     print(f"   预处理...")
     body = clean_hugo(body, base_url)
     body = svg_to_img(body)
+
+    # Fix relative image paths → absolute Hugo URLs
+    if local_dir:
+        slug = local_dir.name
+        date_raw = meta.get('date', '')
+        date_part = date_raw[:10].replace('-', '/') if date_raw else ''
+        article_path = f"{base_url}/posts/{date_part}/{slug}" if date_part else ''
+        if article_path:
+            def _fix_rel(m):
+                img_path = m.group(2)
+                if img_path and not img_path.startswith(('http', '/', 'data:')):
+                    return f'![{m.group(1)}]({article_path}/{img_path})'
+                return m.group(0)
+            body = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', _fix_rel, body)
 
     print(f"   渲染...")
     if use_api:
