@@ -271,6 +271,7 @@ async def serve_render(slug: str, theme: str | None = Query(None)):
                     html
                 )
             display_html = _fix_img_paths(display_html)
+            copy_html = _fix_img_paths(copy_html)
             # Copy HTML embeds images as base64 for WeChat paste
             def _embed_images(html):
                 def _replace(m):

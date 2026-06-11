@@ -215,10 +215,24 @@ def clean_hugo(content: str, base_url: str = 'https://whitefirer.org',
     fn_count = len(re.findall(r'\[\^(\d+)\]', content))
     if fn_count:
         _report(f'脚注 ({fn_count}个)', 'running')
-        # Definitions first: [^1]: → 【1】 (full-width brackets bypass MD parser)
-        content = re.sub(r'\[\^(\d+)\]:\s*', r'【\1】', content)
-        # Then body: [^1] → [1]
-        content = re.sub(r'\[\^(\d+)\]', r'[\1]', content)
+        # Definitions first: [^1]: text → raw HTML (bypass mdnice)
+        def _fn_def(m):
+            num = m.group(1)
+            text = m.group(2)
+            # Convert markdown links in text to italic HTML links
+            text = re.sub(
+                r'\[([^\]]+)\]\(([^)]+)\)',
+                r'<a href="\2" style="font-style:italic;color:#999">\1</a>',
+                text
+            )
+            return f'<p style="color:#999;font-size:14px;margin:2px 0;line-height:1.5">[{num}] {text}</p>'
+        content = re.sub(r'\[\^(\d+)\]:\s*(.+)', _fn_def, content)
+        # Then body: [^1] → <span style="vertical-align:super;font-size:0.75em">[1]</span>
+        content = re.sub(
+            r'\[\^(\d+)\]',
+            r'<span style="vertical-align:super;font-size:0.75em">[\1]</span>',
+            content
+        )
         _report(f'脚注 ({fn_count}个)')
 
     # Misc cleanup
