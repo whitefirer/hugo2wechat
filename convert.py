@@ -215,18 +215,23 @@ def clean_hugo(content: str, base_url: str = 'https://whitefirer.org',
     fn_count = len(re.findall(r'\[\^(\d+)\]', content))
     if fn_count:
         _report(f'脚注 ({fn_count}个)', 'running')
-        # Definitions first: [^1]: text → raw HTML (bypass mdnice)
-        def _fn_def(m):
-            num = m.group(1)
+        # Definitions: [^1]: text → collect for HTML table output
+        refs = []
+        for m in re.finditer(r'\[\^(\d+)\]:\s*(.+)', content):
             text = m.group(2)
-            # Convert markdown links in text to italic HTML links
-            text = re.sub(
-                r'\[([^\]]+)\]\(([^)]+)\)',
-                r'<a href="\2" style="font-style:italic;color:#999">\1</a>',
-                text
+            text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<i>\1 (\2)</i>', text)
+            refs.append((int(m.group(1)), text))
+        content = re.sub(r'\[\^(\d+)\]:\s*.+\n*', '', content)
+        if refs:
+            refs.sort()
+            ref_lines = '<br>'.join(
+                f'[{n}] {t}' for n, t in refs
             )
-            return f'<p style="color:#999;font-size:14px;margin:2px 0;line-height:1.5">[{num}] {text}</p>'
-        content = re.sub(r'\[\^(\d+)\]:\s*(.+)', _fn_def, content)
+            ref_table = (
+                f'\n<div style="color:#999;font-size:14px;line-height:1.6">'
+                f'<b>参考资料</b><br>{ref_lines}</div>\n'
+            )
+            content = content.rstrip() + ref_table
         # Then body: [^1] → <span style="vertical-align:super;font-size:0.75em">[1]</span>
         content = re.sub(
             r'\[\^(\d+)\]',
