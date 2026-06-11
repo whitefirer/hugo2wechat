@@ -221,6 +221,7 @@ def clean_hugo(content: str, base_url: str = 'https://whitefirer.org',
             text = m.group(2)
             text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<i>\1 (\2)</i>', text)
             refs.append((int(m.group(1)), text))
+        content = re.sub(r'\n*\*\*参考资料\*\*\n*', '\n', content)
         content = re.sub(r'\[\^(\d+)\]:\s*.+\n*', '', content)
         if refs:
             refs.sort()
@@ -228,8 +229,8 @@ def clean_hugo(content: str, base_url: str = 'https://whitefirer.org',
                 f'[{n}] {t}' for n, t in refs
             )
             ref_table = (
-                f'\n<div style="color:#999;font-size:14px;line-height:1.6">'
-                f'<b>参考资料</b><br>{ref_lines}</div>\n'
+                f'\n<font color="#999999" style="font-size:14px">'
+                f'<b>参考资料</b><br>{ref_lines}</font>\n'
             )
             content = content.rstrip() + ref_table
         # Then body: [^1] → <span style="vertical-align:super;font-size:0.75em">[1]</span>

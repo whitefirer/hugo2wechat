@@ -272,6 +272,12 @@ async def serve_render(slug: str, theme: str | None = Query(None)):
                 )
             display_html = _fix_img_paths(display_html)
             copy_html = _fix_img_paths(copy_html)
+            # Tighten reference line spacing for WeChat (target by font color)
+            copy_html = re.sub(
+                r'<p[^>]*>(<font[^>]*color="#999999"[^>]*>.*?</font>)</p>',
+                r'<p style="margin:0;padding:1px 0;line-height:1.3">\1</p>',
+                copy_html
+            )
             # Copy HTML embeds images as base64 for WeChat paste
             def _embed_images(html):
                 def _replace(m):
