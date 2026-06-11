@@ -211,6 +211,16 @@ def clean_hugo(content: str, base_url: str = 'https://whitefirer.org',
         content = re.sub(r'{{<\s*bilibili\s+[^>]*>}}', _bil_replace, content)
         _report(f'B站视频 ({bil_count}个)')
 
+    # Footnotes → [n] format for WeChat compat
+    fn_count = len(re.findall(r'\[\^(\d+)\]', content))
+    if fn_count:
+        _report(f'脚注 ({fn_count}个)', 'running')
+        # Definitions first: [^1]: → 【1】 (full-width brackets bypass MD parser)
+        content = re.sub(r'\[\^(\d+)\]:\s*', r'【\1】', content)
+        # Then body: [^1] → [1]
+        content = re.sub(r'\[\^(\d+)\]', r'[\1]', content)
+        _report(f'脚注 ({fn_count}个)')
+
     # Misc cleanup
     content = re.sub(r'{{<\s*\w+[^>]*>}}', '', content)
     content = re.sub(r'{{<\s*/\w+\s*>}}', '', content)
