@@ -271,14 +271,14 @@ async def serve_render(slug: str, theme: str | None = Query(None)):
                     html
                 )
             display_html = _fix_img_paths(display_html)
-            copy_html = _fix_img_paths(copy_html)
             # Tighten reference line spacing for WeChat (target by font color)
-            copy_html = re.sub(
-                r'<p[^>]*>(<font[^>]*color="#999999"[^>]*>.*?</font>)</p>',
-                r'<p style="margin:0;padding:1px 0;line-height:1.3">\1</p>',
-                copy_html
-            )
-            # Copy HTML embeds images as base64 for WeChat paste
+            def _tighten_refs(html):
+                return re.sub(
+                    r'<p[^>]*>(<font[^>]*color="#999999"[^>]*>.*?</font>)</p>',
+                    r'<p style="margin:0;padding:1px 0;line-height:1.3">\1</p>',
+                    html
+                )
+            # Copy HTML: embed images as base64 FIRST (before paths get /-prefixed)
             def _embed_images(html):
                 def _replace(m):
                     fname = m.group(1)
@@ -304,6 +304,9 @@ async def serve_render(slug: str, theme: str | None = Query(None)):
                     html
                 )
             copy_html = _embed_images(copy_html)
+            # After embedding, fix remaining relative paths and tighten refs
+            copy_html = _fix_img_paths(copy_html)
+            copy_html = _tighten_refs(copy_html)
             steps["排版"] = f"{time.time()-t0:.1f}s"
             yield sse("progress", {"step": "排版", "status": "done", "elapsed": steps["排版"]})
         except RuntimeError as e:
