@@ -87,7 +87,7 @@ def _mermaid_to_img(match: re.Match) -> str:
             b64 = base64.b64encode(Path(png_path).read_bytes()).decode()
             Path(mmd_path).unlink(missing_ok=True)
             Path(png_path).unlink(missing_ok=True)
-            return f'\n\n![mermaid](data:image/png;base64,{b64})\n\n'
+            return f'\n\n<img src="data:image/png;base64,{b64}" alt="mermaid" />\n\n'
         except Exception:
             Path(mmd_path).unlink(missing_ok=True)
             Path(png_path).unlink(missing_ok=True)
