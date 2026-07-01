@@ -111,10 +111,7 @@ body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink
 .phone-content pre,.phone-content pre *{max-width:none!important;white-space:pre!important;word-break:normal!important}
 .phone.dark{background:#000;color:#f5f5f7}
 .phone.dark .phone-content{background:#000;color:#f5f5f7}
-.phone.dark .phone-content *{color:#f5f5f7!important}
-.phone-dock{display:flex;justify-content:center;gap:20px;padding:10px 0 14px;background:inherit;border-top:1px solid rgba(0,0,0,.06);border-radius:0 0 28px 28px}
-.phone.dark .phone-dock{border-color:rgba(255,255,255,.06)}
-.dock-icon{width:36px;height:36px;border-radius:8px;border:none;background:rgba(0,0,0,.04);color:#666;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+/* 去全覆盖,改后处理:遍历 innerHTML 设置后批量转换 rgba(0,0,0,x) */
 .dock-icon:hover{background:rgba(0,0,0,.1);color:#333}
 .phone.dark .dock-icon{background:rgba(255,255,255,.06);color:#999}
 .phone.dark .dock-icon:hover{background:rgba(255,255,255,.12);color:#eee}
@@ -367,6 +364,33 @@ footer a{color:var(--accent);text-decoration:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/14.1.0/lib/marked.umd.min.js"></script>
 <script>
+/* 暗色模式后处理:纯黑色 → 白色,记录原值供还原 */
+const darkAdapted = new WeakSet();
+function adaptDark(root) {
+  if (!root) return;
+  root.querySelectorAll('[style*="color"]').forEach(el => {
+    if (darkAdapted.has(el)) return;
+    const style = el.getAttribute('style');
+    const m = style.match(/color:\s*rgba\(0,\s*0,\s*0,\s*([\d.]+)\)/i);
+    if (m) {
+      el.dataset.orig = style;
+      el.style.color = 'rgba(245, 245, 247, ' + m[1] + ')';
+      darkAdapted.add(el);
+    }
+  });
+}
+function restoreLight(root) {
+  if (!root) return;
+  root.querySelectorAll('[style*="color"]').forEach(el => {
+    if (darkAdapted.has(el) && el.dataset.orig) {
+      el.setAttribute('style', el.dataset.orig);
+      darkAdapted.delete(el);
+      delete el.dataset.orig;
+    }
+  });
+}
+
+
 const SLUG = {{ slug | tojson }};
 const ARTICLE_TITLE = {{ title | tojson }};
 let copyHTMLData = '';
@@ -446,6 +470,9 @@ function setFontSize(px) {
 
 function togglePhoneTheme(dark) {
   document.querySelector('.phone').classList.toggle('dark', dark);
+  // 暗色模式后处理:适配纯黑色文字;切回亮色时还原
+  if (dark) adaptDark(document.getElementById('phoneContent'));
+  else restoreLight(document.getElementById('phoneContent'));
 }
 
 function addLogEntry(msg, type) {
