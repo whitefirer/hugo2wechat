@@ -111,6 +111,18 @@ body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink
 .phone-content pre,.phone-content pre *{max-width:none!important;white-space:pre!important;word-break:normal!important}
 .phone.dark{background:#000;color:#f5f5f7}
 .phone.dark .phone-content{background:#000;color:#f5f5f7}
+
+/* 暗色模式:加粗/表格/链接可读性,.phone-content * 全覆盖已去除 */
+.phone.dark .phone-content strong,
+.phone.dark .phone-content b { color: #4fd1c5 !important; }
+.phone.dark .phone-content em,
+.phone.dark .phone-content i { color: #a7f3d0 !important; }
+.phone.dark .phone-content th { background:#2a2a2a !important; color:#f5f5f7 !important; border-color:#444 !important; }
+.phone.dark .phone-content td { color:#f5f5f7 !important; border-color:#444 !important; }
+.phone.dark .phone-content a { color:#34d399 !important; }
+.phone.dark .phone-content [style*="color:rgba(0, 0, 0, 0.4)"] { color:rgba(245,245,247,0.6)!important; }
+/* 底部 dock 不受暗色影响(保持原有样式) */
+.phone-dock { background:inherit !important; }
 /* 去全覆盖,改后处理:遍历 innerHTML 设置后批量转换 rgba(0,0,0,x) */
 .dock-icon:hover{background:rgba(0,0,0,.1);color:#333}
 .phone.dark .dock-icon{background:rgba(255,255,255,.06);color:#999}
