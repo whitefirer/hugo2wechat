@@ -138,8 +138,7 @@ body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink
 .phone-dock { background:inherit !important; }
 /* 去全覆盖,改后处理:遍历 innerHTML 设置后批量转换 rgba(0,0,0,x) */
 .dock-icon:hover{background:rgba(0,0,0,.1);color:#333}
-.phone.dark .dock-icon{background:rgba(255,255,255,.06);color:#999}
-.phone.dark .dock-icon:hover{background:rgba(255,255,255,.12);color:#eee}
+/* 暗色模式:dock 保持亮色外观(不去改图标背景/颜色) */
 
 /* ── Sheet panels (inside phone) ── */
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:14;opacity:0;pointer-events:none;transition:opacity .3s}
