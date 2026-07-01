@@ -134,11 +134,14 @@ body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink
 .phone.dark .phone-content a { color:#34d399 !important; }
 .phone.dark .phone-content a { color:#34d399 !important; }
 .phone.dark .phone-content [style*="color:rgba(0, 0, 0, 0.4)"] { color:rgba(245,245,247,0.6)!important; }
-/* 底部 dock 不受暗色影响(保持原有样式) */
-.phone-dock { background:inherit !important; }
-/* 去全覆盖,改后处理:遍历 innerHTML 设置后批量转换 rgba(0,0,0,x) */
-.dock-icon:hover{background:rgba(0,0,0,.1);color:#333}
-/* 暗色模式:dock 保持亮色外观(不去改图标背景/颜色) */
+/* 底部 dock:亮色模式 */
+.phone-bdock{display:flex;justify-content:center;gap:20px;padding:10px 0 14px;border-top:1px solid rgba(0,0,0,.06);border-radius:0 0 28px 28px}
+.bdock-icon{width:36px;height:36px;border-radius:8px;border:none;background:rgba(0,150,136,.1);color:#009688;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.bdock-icon:hover{background:rgba(0,150,136,.2)}
+/* 暗色模式:dock 保持亮色外观(和公众号手机端一致) */
+.phone-bdock-dark{background:#fff !important;border-top:1px solid rgba(0,0,0,.06) !important}
+.phone-bdock-dark .bdock-icon{background:rgba(0,150,136,.1) !important;color:#009688 !important}
+.phone-bdock-dark .bdock-icon:hover{background:rgba(0,150,136,.2) !important}
 
 /* ── Sheet panels (inside phone) ── */
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:14;opacity:0;pointer-events:none;transition:opacity .3s}
@@ -331,11 +334,11 @@ footer a{color:var(--accent);text-decoration:none}
         <div class="phone-content" id="phoneContent">
           <div class="loading">加载中...</div>
         </div>
-        <div class="phone-dock">
-          <button class="dock-icon" onclick="toggleLog()" title="渲染日志">
+        <div class="phone-bdock" id="phoneDock">
+          <button class="bdock-icon" onclick="toggleLog()" title="渲染日志">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           </button>
-          <button class="dock-icon" onclick="toggleSettings()" title="设置">
+          <button class="bdock-icon" onclick="toggleSettings()" title="设置">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
         </div>
@@ -498,6 +501,8 @@ function setFontSize(px) {
 
 function togglePhoneTheme(dark) {
   document.querySelector('.phone').classList.toggle('dark', dark);
+  // dock 在暗色下保持亮色外观(和公众号手机端一致)
+  document.getElementById('phoneDock').classList.toggle('phone-bdock-dark', dark);
   // 暗色模式后处理:适配纯黑色文字;切回亮色时还原
   if (dark) adaptDark(document.getElementById('phoneContent'));
   else restoreLight(document.getElementById('phoneContent'));
